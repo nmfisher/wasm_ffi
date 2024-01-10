@@ -38,7 +38,8 @@ final Type Pointer_Pointer_Int16 = _extractType<Pointer<Pointer<Int16>>>();
 final Type Pointer_Pointer_Int32 = _extractType<Pointer<Pointer<Int32>>>();
 final Type Pointer_Pointer_Int64 = _extractType<Pointer<Pointer<Int64>>>();
 final Type Pointer_Pointer_Double = _extractType<Pointer<Pointer<Double>>>();
-final Type Pointer_Pointer_UnsignedInt = _extractType<Pointer<Pointer<UnsignedInt>>>();
+final Type Pointer_Pointer_UnsignedInt =
+    _extractType<Pointer<Pointer<UnsignedInt>>>();
 final Type Pointer_Pointer_Uint8 = _extractType<Pointer<Pointer<Uint8>>>();
 final Type Pointer_Pointer_Uint16 = _extractType<Pointer<Pointer<Uint16>>>();
 final Type Pointer_Pointer_Uint32 = _extractType<Pointer<Pointer<Uint32>>>();
@@ -71,7 +72,10 @@ bool isNativeFunctionType<T extends NativeType>() =>
 
 final String _pointerPrefix =
     typeString<Pointer<dynamic>>().split(_dynamicTypeString).first;
-bool isPointerType<T extends NativeType>() =>
-    typeString<T>().startsWith(_pointerPrefix);
+bool isPointerType<T extends NativeType>() {
+  bool result = typeString<T>().startsWith(_pointerPrefix);
+  // print("Result for typestring ${typeString<T>()} : $result ");
+  return result;
+}
 
 bool isVoidType<T extends NativeType>() => _extractType<T>() == FfiVoidType;

@@ -87,27 +87,19 @@ class FunctionDescription extends WasmSymbol {
   /// This is the same as its address.
   int get tableIndex => address;
 
-  /// The amount of arguments the underyling function has.
-  final int argumentCount;
-
   /// The actual function.
   final Function function;
   const FunctionDescription(
-      {required int tableIndex,
-      required String name,
-      required this.argumentCount,
-      required this.function})
+      {required int tableIndex, required String name, required this.function})
       : super(address: tableIndex, name: name);
 
   @override
-  int get hashCode => '$name$argumentCount$tableIndex'.hashCode;
+  int get hashCode => '$name$tableIndex'.hashCode;
 
   @override
   bool operator ==(dynamic other) {
     if (other != null && other is FunctionDescription) {
-      return argumentCount == other.argumentCount &&
-          name == other.name &&
-          tableIndex == other.tableIndex;
+      return name == other.name && tableIndex == other.tableIndex;
     } else {
       return false;
     }
@@ -115,5 +107,5 @@ class FunctionDescription extends WasmSymbol {
 
   @override
   String toString() =>
-      '[tableIndex=$tableIndex\tname=$name\targumentCount=$argumentCount\tfunction=$function]';
+      '[tableIndex=$tableIndex\tname=$name\targumentCount=\tfunction=$function]';
 }

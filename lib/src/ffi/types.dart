@@ -87,6 +87,14 @@ class Float extends NativeType {}
 @notConstructible
 class Int extends NativeType {}
 
+@sealed
+@notConstructible
+class Long extends NativeType {}
+
+@sealed
+@notConstructible
+class Size extends NativeType {}
+
 /// Represents a native signed 8 bit integer in C.
 ///
 /// Int8 is not constructible in the Dart code and serves
@@ -382,7 +390,7 @@ abstract class Allocator {
 Function _toWasmFunction(String signature, Function func) {
   // This function is ported from the JavaScript that Emscripten emits. But more
   // concise cause Dart > JavaScript.
-
+  // print("CONVERTING TO WASM WITH SIGNATURE $signature");
   const typeCodes = {
     'i': 0x7f, // i32
     'j': 0x7e, // i64
@@ -444,6 +452,7 @@ void initSignatures([int pointerSizeBytes = 4]) {
   signatures[typeString<Uint64>()] = 'j';
   signatures[typeString<Utf8>()] = 'i';
   signatures[typeString<Char>()] = 'i';
+  signatures[typeString<Pointer<Void>>()] = pointerSizeBytes == 4 ? 'i' : 'j';
   signatures[typeString<IntPtr>()] = pointerSizeBytes == 4 ? 'i' : 'j';
   signatures[typeString<Opaque>()] = pointerSizeBytes == 4 ? 'i' : 'j';
   signatures[typeString<Void>()] = 'v';
@@ -453,20 +462,35 @@ String _getWasmSignature<T extends Function>() {
   List<String> dartSignature = typeString<T>().split('=>');
   String retType = dartSignature.last.trim();
   String argTypes = dartSignature.first.trim();
-  List<String> argTypesList =
-      argTypes.substring(1, argTypes.length - 1).split(', ');
+  List<String> argTypesList = argTypes.length > 2
+      ? argTypes.substring(1, argTypes.length - 1).split(', ')
+      : [];
 
-  //print("types: $retType $argTypesList");
-  //print("sigs: ${signatures.keys}");
+  // print("types: $retType $argTypesList");
+  // print("sigs: ${signatures.keys}");
 
-  return [retType, ...argTypesList].map((s) => signatures[s] ?? 'i').join();
+  return [retType, ...argTypesList].map((s) {
+    if (!signatures.containsKey(s)) {
+      print(s == typeString<Void>());
+      throw Exception(
+          "Couldn't find signautre for type [$s] [${typeString<Void>()}] ");
+    }
+    return signatures[s]!;
+  }).join();
 }
 
-//final Set<Function> theFunctions = {};
+final Set<Function> theFunctions = {};
 
 final List<Function Function(Function)> callbackHelpers = [
-  (Function func) => () => func([]),
-  (Function func) => (arg1) => func([arg1]),
+  (Function func) {
+    return () {
+      return func([]);
+    };
+  },
+  (Function func) => (arg1) {
+        var retval = func([arg1]);
+        return retval;
+      },
   (Function func) => (arg1, arg2) => func([arg1, arg2]),
   (Function func) => (arg1, arg2, arg3) => func([arg1, arg2, arg3]),
   (Function func) => (arg1, arg2, arg3, arg4) => func([arg1, arg2, arg3, arg4]),
@@ -481,43 +505,61 @@ final List<Function Function(Function)> callbackHelpers = [
 Pointer<NativeFunction<T>> pointerFromFunctionImpl<T extends Function>(
     @DartRepresentationOf('T') Function func, Table table, Memory memory) {
   // TODO: garbage collect
-
-  return exportedFunctions.putIfAbsent(func, () {
-    //print("marshal from: ${func.runtimeType} to $T");
+  var retval = exportedFunctions.putIfAbsent(func, () {
+    // print("converting function runtime type ${func.runtimeType} to $T");
     String dartSignature = func.runtimeType.toString();
     String argTypes = dartSignature.split('=>').first.trim();
-    List<String> argT = argTypes.substring(1, argTypes.length - 1).split(', ');
-    //print("arg types: $argT");
-    List<Function> marshallers = argTypes
-        .substring(1, argTypes.length - 1)
-        .split(', ')
-        .map((arg) => marshaller(arg))
-        .toList();
+    List<String> argT = [];
+    final marshallers = <Function>[];
+    if (argTypes.length > 2) {
+      argT.addAll(argTypes.substring(1, argTypes.length - 1).split(', '));
+
+      var marshallableArgTypes = argTypes
+          .substring(1, argTypes.length - 1)
+          .split(', ')
+          .where((x) => x.isNotEmpty);
+
+      marshallers.addAll(marshallableArgTypes.map((arg) {
+        return marshaller(arg);
+      }).toList());
+    }
 
     String wasmSignature = _getWasmSignature<T>();
 
-    //print("wasm sig: $wasmSignature");
+    // print("wasm sig: $wasmSignature");
 
     Function wrapper1 = (List args) {
-      //print("wrapper of $T called with $args");
+      // print("MARSHALLING ARGS $args");
       final marshalledArgs =
           marshallers.mapIndexed((i, m) => m(args[i], memory)).toList();
-      //print("which is $marshalledArgs on $func");
-      Function.apply(func, marshalledArgs);
-      //print("done!");
+      return Function.apply(func, marshalledArgs);
     };
 
     assert(argT.length < callbackHelpers.length,
         "${argT.length} arguments not supported");
-
+    // print("argT.length ${argT.length}");
     Function wrapper2 = callbackHelpers[argT.length](wrapper1);
 
-//    theFunctions.add(wrapper);
-
     final wasmFunc = _toWasmFunction(wasmSignature, wrapper2);
+
+    // if (argT.length > 0) {
+    //   var result = wasmFunc.call([1000]);
+    //   print("WASMFUNC RESULT $result wiht $wasmSignature");
+    //   //   var foo = wrapper2.call(1000) as Pointer<Void>?;
+    //   //   print("GOT foo ${foo?.address} ");
+    // }
+
     table.grow(1);
     table.set(table.length - 1, wasmFunc);
-    //print("created callback with index ${table.length - 1}");
-    return Pointer<NativeFunction<T>>.fromAddress(table.length - 1, memory);
+
+    memory.setSymbolByAddress(
+        table.length - 1,
+        FunctionDescription(
+            tableIndex: table.length - 1, name: "NAME", function: wrapper2));
+
+    var ptr = Pointer<NativeFunction<T>>.fromAddress(table.length - 1, memory);
+
+    return ptr;
   }) as Pointer<NativeFunction<T>>;
+  return retval;
 }

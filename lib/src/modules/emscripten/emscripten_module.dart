@@ -14,6 +14,9 @@ external Object get _globalThis;
 @JS('Object.entries')
 external List? _entries(Object? o);
 
+@JS('Object.keys')
+external List? _keys(Object? o);
+
 @JS()
 @anonymous
 class _EmscriptenModuleJs {
@@ -23,6 +26,7 @@ class _EmscriptenModuleJs {
 
   external Object? get asm; // Emscripten <3.1.44
   external Object? get wasmExports; // Emscripten >=3.1.44
+  external Object? get wasmTable; // Emscripten <3.1.44
 
   // Must have an unnamed factory constructor with named arguments.
   external factory _EmscriptenModuleJs({Uint8List wasmBinary});
@@ -38,17 +42,19 @@ typedef _Malloc = int Function(int size);
 typedef _Free = void Function(int address);
 
 FunctionDescription _fromWasmFunction(String name, Function func) {
+  print("Getting $name from wasfunc $func");
   String? s = getProperty(func, 'name');
+  print("Got s $s");
   if (s != null) {
     int? index = int.tryParse(s);
     if (index != null) {
       int? length = getProperty(func, 'length');
       if (length != null) {
         return FunctionDescription(
-            tableIndex: index,
-            name: name,
-            function: func,
-            argumentCount: length);
+          tableIndex: index,
+          name: name,
+          function: func,
+        );
       } else {
         throw ArgumentError('$name does not seem to be a function symbol!');
       }
@@ -75,6 +81,7 @@ class EmscriptenModule extends Module {
   /// Documentation is in `emscripten_module_stub.dart`!
   static Future<EmscriptenModule> process(String moduleName) async {
     Function moduleFunction = _moduleFunction(moduleName);
+    print("Got moduelfunction $moduleFunction");
     _EmscriptenModuleJs module = _EmscriptenModuleJs();
     Object? o = moduleFunction(module);
     if (o != null) {
@@ -87,9 +94,11 @@ class EmscriptenModule extends Module {
 
   /// Documentation is in `emscripten_module_stub.dart`!
   static Future<EmscriptenModule> compile(
-      Uint8List wasmBinary, String moduleName, {void Function(_EmscriptenModuleJs)? preinit}) async {
+      Uint8List wasmBinary, String moduleName,
+      {void Function(_EmscriptenModuleJs)? preinit}) async {
     Function moduleFunction = _moduleFunction(moduleName);
     _EmscriptenModuleJs module = _EmscriptenModuleJs(wasmBinary: wasmBinary);
+
     Object? o = moduleFunction(module);
     preinit?.call(module);
     if (o != null) {
@@ -109,10 +118,12 @@ class EmscriptenModule extends Module {
   @override
   List<WasmSymbol> get exports => _exports;
 
-  EmscriptenModule._(
-      this._emscriptenModuleJs, this._exports, this.indirectFunctionTable, this._malloc, this._free);
+  EmscriptenModule._(this._emscriptenModuleJs, this._exports,
+      this.indirectFunctionTable, this._malloc, this._free);
 
   factory EmscriptenModule._fromJs(_EmscriptenModuleJs module) {
+    print("wasm exports : ${module.wasmExports} ");
+    print("wasm table : ${module.wasmTable}");
     Object? asm = module.wasmExports ?? module.asm;
     if (asm != null) {
       Map<int, WasmSymbol> knownAddresses = {};
@@ -120,7 +131,8 @@ class EmscriptenModule extends Module {
       _Free? free;
       List<WasmSymbol> exports = [];
       List? entries = _entries(asm);
-      Table? indirectFunctionTable;
+
+      Table? indirectFunctionTable = module.wasmTable as Table;
       if (entries != null) {
         for (dynamic entry in entries) {
           if (entry is List) {
@@ -129,7 +141,7 @@ class EmscriptenModule extends Module {
               Global g = Global(address: value, name: entry.first as String);
               if (knownAddresses.containsKey(value) &&
                   knownAddresses[value] is! Global) {
-                throw StateError(_adu(knownAddresses[value], g));
+                // throw StateError(_adu(knownAddresses[value], g));
               }
               knownAddresses[value] = g;
               exports.add(g);
@@ -153,8 +165,10 @@ class EmscriptenModule extends Module {
               } else if (description.name == 'free') {
                 free = description.function as _Free;
               }
-            } else if (value is Table && entry.first as String == "__indirect_function_table") {
-              indirectFunctionTable = value;
+            } else if (value is Table) {
+              if (entry.first as String == "__indirect_function_table") {
+                indirectFunctionTable = value;
+              }
             } else if (entry.first as String == "memory") {
               // ignore memory object
             } else {
@@ -167,7 +181,8 @@ class EmscriptenModule extends Module {
         }
         if (malloc != null) {
           if (free != null) {
-            return EmscriptenModule._(module, exports, indirectFunctionTable, malloc, free);
+            return EmscriptenModule._(
+                module, exports, indirectFunctionTable, malloc, free);
           } else {
             throw StateError('Module does not export the free function!');
           }

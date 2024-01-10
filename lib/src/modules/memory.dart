@@ -82,6 +82,10 @@ class Memory implements Allocator {
             .map<MapEntry<String, WasmSymbol>>((WasmSymbol symbol) =>
                 MapEntry<String, WasmSymbol>(symbol.name, symbol)));
 
+  void setSymbolByAddress(int address, WasmSymbol symbol) {
+    _symbolsByAddress[address] = symbol;
+  }
+
   @override
   Pointer<T> allocate<T extends NativeType>(int byteCount, {int? alignment}) {
     return Pointer<T>.fromAddress(_module.malloc(byteCount), this);

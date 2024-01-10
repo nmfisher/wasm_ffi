@@ -16,4 +16,8 @@ class NullMemory implements Memory {
   void free(Pointer<NativeType> pointer) {
     throw UnsupportedError('Can not use the null memory to free pointers!');
   }
+
+  void setSymbolByAddress(int address, WasmSymbol symbol) {
+    throw UnsupportedError('Can not use the null memory to free pointers!');
+  }
 }

@@ -4,6 +4,7 @@ library wasm_ffi_modules;
 
 export 'src/modules/exceptions.dart';
 export 'src/modules/module.dart';
+export 'src/modules/table.dart';
 export 'src/modules/memory.dart'
     show registerOpaqueType, Memory, MemoryRegisterMode;
 
