@@ -42,9 +42,7 @@ typedef _Malloc = int Function(int size);
 typedef _Free = void Function(int address);
 
 FunctionDescription _fromWasmFunction(String name, Function func) {
-  print("Getting $name from wasfunc $func");
   String? s = getProperty(func, 'name');
-  print("Got s $s");
   if (s != null) {
     int? index = int.tryParse(s);
     if (index != null) {
@@ -81,7 +79,6 @@ class EmscriptenModule extends Module {
   /// Documentation is in `emscripten_module_stub.dart`!
   static Future<EmscriptenModule> process(String moduleName) async {
     Function moduleFunction = _moduleFunction(moduleName);
-    print("Got moduelfunction $moduleFunction");
     _EmscriptenModuleJs module = _EmscriptenModuleJs();
     Object? o = moduleFunction(module);
     if (o != null) {
@@ -122,8 +119,6 @@ class EmscriptenModule extends Module {
       this.indirectFunctionTable, this._malloc, this._free);
 
   factory EmscriptenModule._fromJs(_EmscriptenModuleJs module) {
-    print("wasm exports : ${module.wasmExports} ");
-    print("wasm table : ${module.wasmTable}");
     Object? asm = module.wasmExports ?? module.asm;
     if (asm != null) {
       Map<int, WasmSymbol> knownAddresses = {};
@@ -141,6 +136,7 @@ class EmscriptenModule extends Module {
               Global g = Global(address: value, name: entry.first as String);
               if (knownAddresses.containsKey(value) &&
                   knownAddresses[value] is! Global) {
+                print("Known addresses contains key $value");
                 // throw StateError(_adu(knownAddresses[value], g));
               }
               knownAddresses[value] = g;
@@ -155,8 +151,9 @@ class EmscriptenModule extends Module {
               if (knownAddresses.containsKey(description.tableIndex) &&
                   knownAddresses[description.tableIndex]
                       is! FunctionDescription) {
-                throw StateError(
-                    _adu(knownAddresses[description.tableIndex], description));
+                print("Known addresses contains key ${description.tableIndex}");
+                // throw StateError(
+                //     _adu(knownAddresses[description.tableIndex], description));
               }
               knownAddresses[description.tableIndex] = description;
               exports.add(description);

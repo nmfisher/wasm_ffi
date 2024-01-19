@@ -48,6 +48,7 @@ class Memory implements Allocator {
     _registerType<Uint64>(8);
     _registerType<Utf8>(1);
     _registerType<Char>(1);
+    _registerType<Bool>(1);
     _registerType<IntPtr>(pointerSizeBytes);
     _registerType<Opaque>(pointerSizeBytes);
     registerNativeMarshallerType<Void>();
